@@ -10,7 +10,8 @@ data class ServiceItem(
     val path: String = "/",
     val iconName: String = "dns",
     val externalUrl: String? = null,
-    val isWebUi: Boolean = true
+    val isWebUi: Boolean = true,
+    val adminOnly: Boolean = false
 ) {
     fun getUrl(activeHost: String): String {
         if (externalUrl != null) return externalUrl
@@ -24,12 +25,23 @@ object ServiceRepository {
     val services = listOf(
         // Core Security & DNS
         ServiceItem(
+            id = "auth-portal",
+            title = "Identity & User Management",
+            description = "Manage users, Tailscale profiles & RBAC roles (Admin Portal)",
+            category = "Core Security & DNS",
+            port = 8089,
+            path = "/admin",
+            iconName = "shield",
+            adminOnly = true
+        ),
+        ServiceItem(
             id = "adguard",
             title = "AdGuard Home",
             description = "Network-wide ad, tracker & malware sinkhole",
             category = "Core Security & DNS",
             port = 8080,
-            iconName = "security"
+            iconName = "security",
+            adminOnly = true
         ),
         ServiceItem(
             id = "vaultwarden",
@@ -38,7 +50,8 @@ object ServiceRepository {
             category = "Core Security & DNS",
             port = 8443,
             isHttps = true,
-            iconName = "lock"
+            iconName = "lock",
+            adminOnly = true
         ),
         ServiceItem(
             id = "honeypot",
@@ -47,7 +60,8 @@ object ServiceRepository {
             category = "Core Security & DNS",
             port = 2222,
             iconName = "terminal",
-            isWebUi = false
+            isWebUi = false,
+            adminOnly = true
         ),
         ServiceItem(
             id = "crowdsec",
@@ -56,10 +70,11 @@ object ServiceRepository {
             category = "Core Security & DNS",
             port = 8081,
             iconName = "shield",
-            externalUrl = "https://app.crowdsec.net"
+            externalUrl = "https://app.crowdsec.net",
+            adminOnly = true
         ),
 
-        // AI & Dev Workspace
+        // AI & Dev Workspace (Standard & User-Accessible)
         ServiceItem(
             id = "qdrant",
             title = "Qdrant Vector DB",
@@ -67,7 +82,8 @@ object ServiceRepository {
             category = "AI & Dev Workspace",
             port = 6333,
             path = "/dashboard",
-            iconName = "database"
+            iconName = "database",
+            adminOnly = true
         ),
         ServiceItem(
             id = "browser",
@@ -76,7 +92,8 @@ object ServiceRepository {
             category = "AI & Dev Workspace",
             port = 3003,
             isHttps = true,
-            iconName = "web"
+            iconName = "web",
+            adminOnly = false
         ),
         ServiceItem(
             id = "stirling",
@@ -84,7 +101,8 @@ object ServiceRepository {
             description = "100% private in-browser document editor & OCR",
             category = "AI & Dev Workspace",
             port = 8086,
-            iconName = "file"
+            iconName = "file",
+            adminOnly = false
         ),
         ServiceItem(
             id = "it-tools",
@@ -92,7 +110,8 @@ object ServiceRepository {
             description = "Swiss Army Knife of 80+ developer utilities & converters",
             category = "AI & Dev Workspace",
             port = 8087,
-            iconName = "build"
+            iconName = "build",
+            adminOnly = false
         ),
         ServiceItem(
             id = "pairdrop",
@@ -100,7 +119,8 @@ object ServiceRepository {
             description = "Local peer-to-peer file transfer & AirDrop alternative",
             category = "AI & Dev Workspace",
             port = 8088,
-            iconName = "share"
+            iconName = "share",
+            adminOnly = false
         ),
 
         // System & Management
@@ -110,7 +130,8 @@ object ServiceRepository {
             description = "Live CPU temperature & system telemetry HUD",
             category = "System & Management",
             port = 8090,
-            iconName = "thermostat"
+            iconName = "thermostat",
+            adminOnly = true
         ),
         ServiceItem(
             id = "watchtower",
@@ -119,7 +140,8 @@ object ServiceRepository {
             category = "System & Management",
             port = 0,
             iconName = "update",
-            isWebUi = false
+            isWebUi = false,
+            adminOnly = true
         ),
         ServiceItem(
             id = "kuma",
@@ -127,7 +149,8 @@ object ServiceRepository {
             description = "Real-time service health & ping monitor",
             category = "System & Management",
             port = 3001,
-            iconName = "speed"
+            iconName = "speed",
+            adminOnly = true
         ),
         ServiceItem(
             id = "syncthing",
@@ -135,7 +158,8 @@ object ServiceRepository {
             description = "Encrypted P2P file & Obsidian notes sync",
             category = "System & Management",
             port = 8384,
-            iconName = "sync"
+            iconName = "sync",
+            adminOnly = false
         ),
         ServiceItem(
             id = "registry",
@@ -143,7 +167,8 @@ object ServiceRepository {
             description = "Private container image catalog & manager",
             category = "System & Management",
             port = 5001,
-            iconName = "layers"
+            iconName = "layers",
+            adminOnly = true
         ),
         ServiceItem(
             id = "bot",
@@ -152,7 +177,8 @@ object ServiceRepository {
             category = "System & Management",
             port = 0,
             externalUrl = "https://t.me/ArgonPiSentinelBot",
-            iconName = "send"
+            iconName = "send",
+            adminOnly = false
         )
     )
 }

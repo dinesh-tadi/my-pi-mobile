@@ -1,4 +1,4 @@
-# Argon Mobile Hub (Android)
+# Argon Mobile Hub v2.0 (Android)
 
 Native Kotlin & Jetpack Compose Android client for the Raspberry Pi homelab (`argon-host`).
 
@@ -32,6 +32,14 @@ Native Kotlin & Jetpack Compose Android client for the Raspberry Pi homelab (`ar
    - Interactive `WebView` with hardware acceleration.
    - SSL bypass for internal homelab self-signed certificates (e.g. Vaultwarden Caddy TLS).
    - In-app progress indicator, page reload, and external Chrome launcher.
+
+4. **Unified Authentication & Role-Based Access Control (RBAC)**:
+   - Full support for Username/Password and Google OIDC authentication against `argon-auth` (Port 8089).
+   - Role-based UI filtering:
+     - **Admin**: Unrestricted access to all infrastructure stacks + 1-tap shortcut to the **Identity & User Management Portal**.
+     - **Standard User**: Clean view of daily productivity tools (Stirling-PDF, Syncthing, IT-Tools, PairDrop, Disposable Browser).
+   - Top-bar profile menu with role badge (`ADMIN` / `USER`) and sign-out.
+   - Offline / Guest access mode fallback.
 
 ## CI/CD Pipeline & Automated Releases
 
