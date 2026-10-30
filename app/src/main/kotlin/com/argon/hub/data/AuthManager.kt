@@ -41,138 +41,160 @@ class AuthManager(context: Context) {
         _authState.value = AuthState.Unauthenticated
     }
 
+    private fun getCandidateHosts(activeHost: String): List<String> {
+        val list = mutableListOf<String>()
+        if (activeHost.isNotBlank()) list.add(activeHost)
+        if (!list.contains("100.123.87.122")) list.add("100.123.87.122")
+        if (!list.contains("192.168.1.10")) list.add("192.168.1.10")
+        return list
+    }
+
     suspend fun loginWithCredentials(activeHost: String, login: String, pass: String): Result<User> =
         withContext(Dispatchers.IO) {
-            try {
-                val host = activeHost.ifBlank { "100.123.87.122" }
-                val url = URL("http://$host:8089/api/auth/login")
-                val conn = (url.openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 3000
-                    readTimeout = 3000
-                    requestMethod = "POST"
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Accept", "application/json")
-                }
+            val hosts = getCandidateHosts(activeHost)
+            var lastError: Exception? = null
 
-                val body = JSONObject().apply {
-                    put("login", login.trim())
-                    put("password", pass)
-                }
+            for (host in hosts) {
+                try {
+                    val url = URL("http://$host:8089/api/auth/login")
+                    val conn = (url.openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 2500
+                        readTimeout = 2500
+                        requestMethod = "POST"
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                        setRequestProperty("Accept", "application/json")
+                    }
 
-                conn.outputStream.use { os ->
-                    os.write(body.toString().toByteArray())
-                }
+                    val body = JSONObject().apply {
+                        put("login", login.trim())
+                        put("password", pass)
+                    }
 
-                val code = conn.responseCode
-                if (code == 200) {
-                    val resp = conn.inputStream.bufferedReader().use { it.readText() }
-                    val json = JSONObject(resp)
-                    val token = json.getString("token")
-                    val userObj = json.getJSONObject("user")
-                    val user = User(
-                        id = userObj.getInt("id"),
-                        username = userObj.getString("username"),
-                        email = userObj.getString("email"),
-                        role = userObj.optString("role", "user"),
-                        displayName = if (userObj.has("display_name") && !userObj.isNull("display_name")) userObj.getString("display_name") else null
-                    )
+                    conn.outputStream.use { os ->
+                        os.write(body.toString().toByteArray())
+                    }
 
-                    saveSession(token, user)
-                    _authState.value = AuthState.Authenticated(user, token)
-                    Result.success(user)
-                } else {
-                    val err = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
-                    val msg = try { JSONObject(err).optString("detail", "Login failed") } catch (_: Exception) { err }
-                    Result.failure(Exception(msg))
+                    val code = conn.responseCode
+                    if (code == 200) {
+                        val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                        val json = JSONObject(resp)
+                        val token = json.getString("token")
+                        val userObj = json.getJSONObject("user")
+                        val user = User(
+                            id = userObj.getInt("id"),
+                            username = userObj.getString("username"),
+                            email = userObj.getString("email"),
+                            role = userObj.optString("role", "user"),
+                            displayName = if (userObj.has("display_name") && !userObj.isNull("display_name")) userObj.getString("display_name") else null
+                        )
+
+                        saveSession(token, user)
+                        _authState.value = AuthState.Authenticated(user, token)
+                        return@withContext Result.success(user)
+                    } else {
+                        val err = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
+                        val msg = try { JSONObject(err).optString("detail", "Login failed") } catch (_: Exception) { err }
+                        return@withContext Result.failure(Exception(msg))
+                    }
+                } catch (e: Exception) {
+                    lastError = e
                 }
-            } catch (e: Exception) {
-                Result.failure(Exception(e.localizedMessage ?: "Network error connecting to Auth gateway"))
             }
+            Result.failure(Exception(lastError?.localizedMessage ?: "Network error connecting to Auth gateway"))
         }
 
     suspend fun loginWithGoogle(activeHost: String, idToken: String): Result<User> =
         withContext(Dispatchers.IO) {
-            try {
-                val host = activeHost.ifBlank { "100.123.87.122" }
-                val url = URL("http://$host:8089/api/auth/google")
-                val conn = (url.openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 4000
-                    readTimeout = 4000
-                    requestMethod = "POST"
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Accept", "application/json")
-                }
+            val hosts = getCandidateHosts(activeHost)
+            var lastError: Exception? = null
 
-                val body = JSONObject().apply {
-                    put("id_token", idToken)
-                }
+            for (host in hosts) {
+                try {
+                    val url = URL("http://$host:8089/api/auth/google")
+                    val conn = (url.openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 3000
+                        readTimeout = 3000
+                        requestMethod = "POST"
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                        setRequestProperty("Accept", "application/json")
+                    }
 
-                conn.outputStream.use { os ->
-                    os.write(body.toString().toByteArray())
-                }
+                    val body = JSONObject().apply {
+                        put("id_token", idToken)
+                    }
 
-                val code = conn.responseCode
-                if (code == 200) {
-                    val resp = conn.inputStream.bufferedReader().use { it.readText() }
-                    val json = JSONObject(resp)
-                    val token = json.getString("token")
-                    val userObj = json.getJSONObject("user")
-                    val user = User(
-                        id = userObj.getInt("id"),
-                        username = userObj.getString("username"),
-                        email = userObj.getString("email"),
-                        role = userObj.optString("role", "user"),
-                        displayName = if (userObj.has("display_name") && !userObj.isNull("display_name")) userObj.getString("display_name") else null
-                    )
+                    conn.outputStream.use { os ->
+                        os.write(body.toString().toByteArray())
+                    }
 
-                    saveSession(token, user)
-                    _authState.value = AuthState.Authenticated(user, token)
-                    Result.success(user)
-                } else {
-                    val err = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
-                    val msg = try { JSONObject(err).optString("detail", "Google sign-in failed") } catch (_: Exception) { err }
-                    Result.failure(Exception(msg))
+                    val code = conn.responseCode
+                    if (code == 200) {
+                        val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                        val json = JSONObject(resp)
+                        val token = json.getString("token")
+                        val userObj = json.getJSONObject("user")
+                        val user = User(
+                            id = userObj.getInt("id"),
+                            username = userObj.getString("username"),
+                            email = userObj.getString("email"),
+                            role = userObj.optString("role", "user"),
+                            displayName = if (userObj.has("display_name") && !userObj.isNull("display_name")) userObj.getString("display_name") else null
+                        )
+
+                        saveSession(token, user)
+                        _authState.value = AuthState.Authenticated(user, token)
+                        return@withContext Result.success(user)
+                    } else {
+                        val err = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $code"
+                        val msg = try { JSONObject(err).optString("detail", "Google sign-in failed") } catch (_: Exception) { err }
+                        return@withContext Result.failure(Exception(msg))
+                    }
+                } catch (e: Exception) {
+                    lastError = e
                 }
-            } catch (e: Exception) {
-                Result.failure(Exception(e.localizedMessage ?: "Failed to connect to Google Auth endpoint"))
             }
+            Result.failure(Exception(lastError?.localizedMessage ?: "Failed to connect to Google Auth endpoint"))
         }
 
     suspend fun verifySession(activeHost: String) = withContext(Dispatchers.IO) {
         val current = _authState.value
         if (current !is AuthState.Authenticated) return@withContext
 
-        try {
-            val host = activeHost.ifBlank { "100.123.87.122" }
-            val url = URL("http://$host:8089/api/auth/me")
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 2000
-                readTimeout = 2000
-                requestMethod = "GET"
-                setRequestProperty("Authorization", "Bearer ${current.token}")
-                setRequestProperty("Accept", "application/json")
-            }
+        val hosts = getCandidateHosts(activeHost)
+        for (host in hosts) {
+            try {
+                val url = URL("http://$host:8089/api/auth/me")
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 1500
+                    readTimeout = 1500
+                    requestMethod = "GET"
+                    setRequestProperty("Authorization", "Bearer ${current.token}")
+                    setRequestProperty("Accept", "application/json")
+                }
 
-            if (conn.responseCode == 200) {
-                val resp = conn.inputStream.bufferedReader().use { it.readText() }
-                val json = JSONObject(resp)
-                val userObj = json.getJSONObject("user")
-                val updatedUser = User(
-                    id = userObj.getInt("id"),
-                    username = userObj.getString("username"),
-                    email = userObj.getString("email"),
-                    role = userObj.optString("role", "user"),
-                    displayName = if (userObj.has("display_name") && !userObj.isNull("display_name")) userObj.getString("display_name") else null
-                )
-                saveSession(current.token, updatedUser)
-                _authState.value = AuthState.Authenticated(updatedUser, current.token)
-            } else if (conn.responseCode == 401) {
-                logout()
+                if (conn.responseCode == 200) {
+                    val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(resp)
+                    val userObj = json.getJSONObject("user")
+                    val updatedUser = User(
+                        id = userObj.getInt("id"),
+                        username = userObj.getString("username"),
+                        email = userObj.getString("email"),
+                        role = userObj.optString("role", "user"),
+                        displayName = if (userObj.has("display_name") && !userObj.isNull("display_name")) userObj.getString("display_name") else null
+                    )
+                    saveSession(current.token, updatedUser)
+                    _authState.value = AuthState.Authenticated(updatedUser, current.token)
+                    return@withContext
+                } else if (conn.responseCode == 401) {
+                    logout()
+                    return@withContext
+                }
+            } catch (_: Exception) {
+                // Try next host
             }
-        } catch (_: Exception) {
-            // Keep existing cached credentials when temporarily offline
         }
     }
 
