@@ -15,9 +15,31 @@ android {
     versionName = "1.7"
   }
 
+  signingConfigs {
+    create("customSigning") {
+      val keystoreFile = file("argon.keystore")
+      if (keystoreFile.exists()) {
+        storeFile = keystoreFile
+        storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+        keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+      }
+    }
+  }
+
   buildTypes {
+    debug {
+      val customConfig = signingConfigs.findByName("customSigning")
+      if (customConfig?.storeFile != null && customConfig.storeFile!!.exists()) {
+        signingConfig = customConfig
+      }
+    }
     release {
       isMinifyEnabled = false
+      val customConfig = signingConfigs.findByName("customSigning")
+      if (customConfig?.storeFile != null && customConfig.storeFile!!.exists()) {
+        signingConfig = customConfig
+      }
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
     }
   }
