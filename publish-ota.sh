@@ -38,12 +38,10 @@ fi
 # 1. Archive on Mac by version number
 ARCHIVED_APK="$BUILDS_DIR/argon-hub-v${VERSION_NAME}-b${VERSION_CODE}.apk"
 cp "$COMPILED_APK" "$ARCHIVED_APK"
-cp "$COMPILED_APK" "$ROOT_DIR/argon-hub.apk"
-cp "$COMPILED_APK" "$ROOT_DIR/argon-ota/dist/argon-hub.apk"
 echo "✅ Archived on Mac: $ARCHIVED_APK"
 
 # 2. Update version.json
-VERSION_JSON="$ROOT_DIR/argon-ota/dist/version.json"
+VERSION_JSON="$BUILDS_DIR/version.json"
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 cat <<EOF > "$VERSION_JSON"
 {
@@ -56,10 +54,17 @@ cat <<EOF > "$VERSION_JSON"
 EOF
 echo "✅ Generated version metadata: $VERSION_JSON"
 
+# If local sibling my-pi/argon-ota/dist exists, keep it synced as well
+LOCAL_OTA_DIR="$ROOT_DIR/my-pi/argon-ota/dist"
+if [ -d "$LOCAL_OTA_DIR" ]; then
+    cp "$COMPILED_APK" "$LOCAL_OTA_DIR/argon-hub.apk"
+    cp "$VERSION_JSON" "$LOCAL_OTA_DIR/version.json"
+fi
+
 # 3. Synchronize to Raspberry Pi (overwriting to ensure ONLY 1 APK exists on Pi)
 echo "🚀 Publishing single latest APK to Raspberry Pi OTA server..."
-scp "$ROOT_DIR/argon-ota/dist/version.json" pi:~/my-pi/argon-ota/dist/version.json
-scp "$ROOT_DIR/argon-ota/dist/argon-hub.apk" pi:~/my-pi/argon-ota/dist/argon-hub.apk
+scp "$VERSION_JSON" pi:~/my-pi/argon-ota/dist/version.json
+scp "$COMPILED_APK" pi:~/my-pi/argon-ota/dist/argon-hub.apk
 
 echo "==========================================="
 echo "🎉 Successfully published OTA Update v${VERSION_NAME} to Pi!"
