@@ -21,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.argon.hub.data.AuthManager
 import com.argon.hub.data.AuthState
+import com.argon.hub.data.ConnectionState
 import com.argon.hub.data.NetworkManager
 import com.argon.hub.data.OtaManager
 import com.argon.hub.ui.HubScreen
