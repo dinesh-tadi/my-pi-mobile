@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Build
@@ -73,6 +74,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.unit.sp
+import com.argon.hub.model.User
 import com.argon.hub.data.ConnectionState
 import com.argon.hub.data.NetworkManager
 import com.argon.hub.data.OtaManager
@@ -86,8 +94,10 @@ import kotlinx.coroutines.launch
 fun HubScreen(
     networkManager: NetworkManager,
     otaManager: OtaManager,
+    currentUser: User? = null,
     onOpenService: (title: String, url: String) -> Unit,
     onRefresh: () -> Unit,
+    onSignOut: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -145,6 +155,90 @@ fun HubScreen(
                             contentDescription = "Refresh connection"
                         )
                     }
+
+                    // User Profile & Role Dropdown
+                    var menuExpanded by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (currentUser?.isAdmin == true) Color(0xFF8B5CF6) else Color(0xFF0284C7),
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = currentUser?.username?.take(1)?.uppercase() ?: "U",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                        Text(
+                                            text = currentUser?.displayTitle ?: "User",
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            text = currentUser?.email ?: "",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = if (currentUser?.isAdmin == true) Color(0x338B5CF6) else Color(0x330284C7)
+                                        ) {
+                                            Text(
+                                                text = (currentUser?.role ?: "user").uppercase(),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (currentUser?.isAdmin == true) Color(0xFFC084FC) else Color(0xFF38BDF8),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = {},
+                                enabled = false
+                            )
+
+                            HorizontalDivider()
+
+                            if (currentUser?.isAdmin == true) {
+                                DropdownMenuItem(
+                                    text = { Text("Identity & User Portal") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFFC084FC))
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onOpenService("Identity & User Portal", "http://$activeHost:8089/admin")
+                                    }
+                                )
+                            }
+
+                            DropdownMenuItem(
+                                text = { Text("Sign Out", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = {
+                                    Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                },
+                                onClick = {
+                                    menuExpanded = false
+                                    onSignOut()
+                                }
+                            )
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer
@@ -181,9 +275,17 @@ fun HubScreen(
                 )
             }
 
+            val displayedServices = remember(currentUser) {
+                if (currentUser?.isAdmin == true) {
+                    ServiceRepository.services
+                } else {
+                    ServiceRepository.services.filter { !it.adminOnly }
+                }
+            }
+
             if (selectedTab == 0) {
                 NativeServicesList(
-                    services = ServiceRepository.services,
+                    services = displayedServices,
                     activeHost = activeHost,
                     onOpenService = onOpenService
                 )
