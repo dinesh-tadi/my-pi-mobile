@@ -33,12 +33,30 @@ Native Kotlin & Jetpack Compose Android client for the Raspberry Pi homelab (`ar
    - SSL bypass for internal homelab self-signed certificates (e.g. Vaultwarden Caddy TLS).
    - In-app progress indicator, page reload, and external Chrome launcher.
 
-## Building the APK
+## CI/CD Pipeline & Automated Releases
+
+### Branch & PR Workflow Convention
+1. Create a feature branch from `main`:
+   ```bash
+   git checkout -b feat/your-feature
+   ```
+2. Make Android changes, commit, and push:
+   ```bash
+   git push -u origin feat/your-feature
+   ```
+3. Open a Pull Request to `main`. GitHub Actions automatically verifies the Android build (`assembleDebug`).
+4. On merging the PR into `main`:
+   - Builds the APK
+   - Creates a GitHub Release with the downloadable `.apk` file attached
+   - Automatically syncs the new version to the Pi's OTA server (`argon-ota/dist/`) via Tailscale SSH!
+
+## Building Locally
 
 ```bash
-cd argon-mobile-hub
 JAVA_HOME=$HOME/.local/share/jdk-17/Contents/Home ANDROID_HOME=$HOME/Library/Android/sdk ./gradlew assembleDebug
 ```
 
-The compiled APK will be located at:
-`app/build/outputs/apk/debug/app-debug.apk`
+Or run the self-contained OTA publishing script:
+```bash
+./publish-ota.sh "Release notes here"
+```
