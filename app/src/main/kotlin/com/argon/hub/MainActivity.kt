@@ -86,8 +86,12 @@ fun ArgonApp(
 ) {
     val scope = rememberCoroutineScope()
     val authState by authManager.authState.collectAsStateWithLifecycle()
+    val connectionState by networkManager.connectionState.collectAsStateWithLifecycle()
     var activeService by remember { mutableStateOf<ActiveService?>(null) }
-    val activeHost = networkManager.getActiveHost()
+    val activeHost = when (val conn = connectionState) {
+        is ConnectionState.Connected -> conn.host
+        else -> networkManager.getActiveHost()
+    }
 
     when (val state = authState) {
         is AuthState.Initializing -> {

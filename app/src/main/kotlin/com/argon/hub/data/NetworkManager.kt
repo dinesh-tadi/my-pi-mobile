@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,29 +29,31 @@ class NetworkManager {
     fun getActiveHost(): String {
         return when (val state = _connectionState.value) {
             is ConnectionState.Connected -> state.host
-            else -> lanHost
+            else -> tailscaleHost
         }
     }
 
     suspend fun checkConnectivity() = withContext(Dispatchers.IO) {
         _connectionState.value = ConnectionState.Checking
 
-        // 1. Test LAN first (port 80 or 8080)
-        val lanPing = testHost(lanHost, 80)
+        // Concurrently check LAN (400ms timeout) and Tailscale (1500ms timeout)
+        val lanJob = async { testHost(lanHost, 8089, 400) ?: testHost(lanHost, 80, 400) }
+        val tsJob = async { testHost(tailscaleHost, 8089, 1500) ?: testHost(tailscaleHost, 80, 1500) }
+
+        val lanPing = lanJob.await()
         if (lanPing != null) {
             _connectionState.value = ConnectionState.Connected(lanHost, "Home Wi-Fi", lanPing)
             return@withContext
         }
 
-        // 2. Test Tailscale IP
-        val tsPing = testHost(tailscaleHost, 80)
+        val tsPing = tsJob.await()
         if (tsPing != null) {
             _connectionState.value = ConnectionState.Connected(tailscaleHost, "Tailscale Mesh", tsPing)
             return@withContext
         }
 
         // 3. Test MagicDNS
-        val dnsPing = testHost(dnsHost, 80)
+        val dnsPing = testHost(dnsHost, 80, 600)
         if (dnsPing != null) {
             _connectionState.value = ConnectionState.Connected(dnsHost, "Tailscale DNS", dnsPing)
             return@withContext
