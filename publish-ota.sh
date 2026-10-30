@@ -62,9 +62,11 @@ if [ -d "$LOCAL_OTA_DIR" ]; then
 fi
 
 # 3. Synchronize to Raspberry Pi (overwriting to ensure ONLY 1 APK exists on Pi)
-echo "🚀 Publishing single latest APK to Raspberry Pi OTA server..."
-scp "$VERSION_JSON" pi:~/my-pi/argon-ota/dist/version.json
-scp "$COMPILED_APK" pi:~/my-pi/argon-ota/dist/argon-hub.apk
+PI_HOST="${PI_HOST:-pi}"
+echo "🚀 Publishing single latest APK to Raspberry Pi OTA server ($PI_HOST)..."
+ssh -o BatchMode=yes "$PI_HOST" "mkdir -p ~/my-pi/argon-ota/dist" || true
+scp "$VERSION_JSON" "${PI_HOST}:~/my-pi/argon-ota/dist/version.json"
+scp "$COMPILED_APK" "${PI_HOST}:~/my-pi/argon-ota/dist/argon-hub.apk"
 
 echo "==========================================="
 echo "🎉 Successfully published OTA Update v${VERSION_NAME} to Pi!"

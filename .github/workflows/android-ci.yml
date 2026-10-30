@@ -1,0 +1,104 @@
+name: Android CI & OTA Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Test APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission to Gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Extract App Version Information
+        id: app_version
+        run: |
+          VERSION_CODE=$(grep "versionCode" app/build.gradle.kts | head -n 1 | awk -F '=' '{print $2}' | tr -d ' ')
+          VERSION_NAME=$(grep "versionName" app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "TAG_NAME=v${VERSION_NAME}-b${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: argon-hub-v${{ steps.app_version.outputs.VERSION_NAME }}-b${{ steps.app_version.outputs.VERSION_CODE }}.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.app_version.outputs.TAG_NAME }}
+          name: Argon Mobile Hub ${{ steps.app_version.outputs.TAG_NAME }}
+          body: |
+            Automated CI/CD build from commit `${{ github.sha }}`.
+            
+            - **Version Name:** ${{ steps.app_version.outputs.VERSION_NAME }}
+            - **Version Code:** ${{ steps.app_version.outputs.VERSION_CODE }}
+          files: |
+            app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Connect to Tailscale (OTA Pi Deploy)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && env.HAS_TAILSCALE == 'true'
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+        env:
+          HAS_TAILSCALE: ${{ secrets.TAILSCALE_AUTHKEY != '' }}
+
+      - name: Deploy APK to Raspberry Pi OTA Server
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && env.HAS_TAILSCALE == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PI_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          
+          PI_DEST="${{ secrets.PI_USER || 'argon' }}@${{ secrets.PI_HOST || '100.123.87.122' }}"
+          ssh -o StrictHostKeyChecking=no "$PI_DEST" "mkdir -p ~/my-pi/argon-ota/dist"
+          
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          cat <<EOF > version.json
+          {
+            "versionCode": ${{ steps.app_version.outputs.VERSION_CODE }},
+            "versionName": "${{ steps.app_version.outputs.VERSION_NAME }}",
+            "releaseDate": "${NOW}",
+            "apkPath": "/argon-hub.apk",
+            "releaseNotes": "Automated OTA update from commit ${{ github.sha }}"
+          }
+          EOF
+          
+          scp -o StrictHostKeyChecking=no version.json "$PI_DEST:~/my-pi/argon-ota/dist/version.json"
+          scp -o StrictHostKeyChecking=no app/build/outputs/apk/debug/app-debug.apk "$PI_DEST:~/my-pi/argon-ota/dist/argon-hub.apk"
+          echo "🎉 Successfully published OTA update to Raspberry Pi!"
+        env:
+          HAS_TAILSCALE: ${{ secrets.TAILSCALE_AUTHKEY != '' }}
