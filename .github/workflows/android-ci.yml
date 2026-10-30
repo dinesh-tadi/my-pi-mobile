@@ -33,6 +33,14 @@ jobs:
       - name: Grant Execute Permission to Gradlew
         run: chmod +x gradlew
 
+      - name: Decode Signing Keystore from Secrets
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/argon.keystore
+          echo "✅ Keystore restored from GitHub Secrets"
+        env:
+          HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
