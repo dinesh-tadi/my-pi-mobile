@@ -124,6 +124,18 @@ fun HubScreen(
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0x3306B6D4)
+                            ) {
+                                Text(
+                                    text = "v2.0",
+                                    color = Color(0xFF22D3EE),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
                             ConnectionStatusBadge(connectionState)
                         }
                         val installedVersion = remember(context) {

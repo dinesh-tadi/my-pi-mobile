@@ -1,4 +1,4 @@
-# Argon Mobile Hub (Android)
+# Argon Mobile Hub v2.0 (Android)
 
 Native Kotlin & Jetpack Compose Android client for the Raspberry Pi homelab (`argon-host`).
 

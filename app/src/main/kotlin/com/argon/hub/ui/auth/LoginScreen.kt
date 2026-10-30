@@ -98,12 +98,30 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            Text(
-                text = "Argon Mobile Hub",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "Argon Mobile Hub",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0x3306B6D4)
+                ) {
+                    Text(
+                        text = "v2.0",
+                        color = Color(0xFF22D3EE),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
 
             Text(
                 text = "Homelab Identity & Security Gateway",
@@ -297,7 +315,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "Protected by Argon Zero-Trust Tailscale Network",
+                text = "Argon Mobile Hub v2.0 • Zero-Trust Tailscale Network",
                 fontSize = 11.sp,
                 color = Color(0xFF475569),
                 textAlign = TextAlign.Center
