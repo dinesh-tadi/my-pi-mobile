@@ -24,7 +24,7 @@ jobs:
 
       - name: Verify Version & Build Code Increment
         run: |
-          git fetch origin main:origin/main --depth=10
+          git fetch origin main --depth=10
           
           NEW_CODE=$(grep "versionCode" app/build.gradle.kts | head -n 1 | awk -F '=' '{print $2}' | tr -d ' ')
           NEW_NAME=$(grep "versionName" app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')

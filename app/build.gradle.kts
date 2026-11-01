@@ -11,8 +11,8 @@ android {
     applicationId = "com.argon.hub"
     minSdk = 26
     targetSdk = 36
-    versionCode = 16
-    versionName = "2.1.2"
+    versionCode = 17
+    versionName = "2.1.3"
   }
 
   signingConfigs {
