@@ -12,8 +12,81 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build & Test APK
+  pr-check:
+    name: PR Lint & Version Bump Gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Version & Build Code Increment
+        run: |
+          git fetch origin main:origin/main --depth=10
+          
+          NEW_CODE=$(grep "versionCode" app/build.gradle.kts | head -n 1 | awk -F '=' '{print $2}' | tr -d ' ')
+          NEW_NAME=$(grep "versionName" app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          
+          BASE_CODE=$(git show origin/main:app/build.gradle.kts | grep "versionCode" | head -n 1 | awk -F '=' '{print $2}' | tr -d ' ')
+          BASE_NAME=$(git show origin/main:app/build.gradle.kts | grep "versionName" | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔍 Base (main) Version: v${BASE_NAME} (Build ${BASE_CODE})"
+          echo "🔍 PR (branch) Version: v${NEW_NAME} (Build ${NEW_CODE})"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          python3 -c "
+          import sys
+
+          def parse_semver(v):
+              clean = v.strip().lstrip('v').split('-')[0]
+              parts = [int(p) for p in clean.split('.')]
+              while len(parts) < 3:
+                  parts.append(0)
+              return tuple(parts)
+
+          base_code = int('$BASE_CODE')
+          new_code = int('$NEW_CODE')
+          base_name = '$BASE_NAME'
+          new_name = '$NEW_NAME'
+
+          # 1. Exact Build Code Increment Check (+1)
+          expected_code = base_code + 1
+          if new_code != expected_code:
+              print(f'❌ BLOCKED: versionCode must increment by exactly 1! Expected {expected_code}, found {new_code}.')
+              sys.exit(1)
+
+          # 2. Version Name Upgrade Check (at least a patch bump)
+          base_v = parse_semver(base_name)
+          new_v = parse_semver(new_name)
+          if new_v <= base_v:
+              print(f'❌ BLOCKED: versionName must be bumped! Base is {base_name}, found {new_name}.')
+              sys.exit(1)
+
+          print(f'✅ Version validation passed! v{base_name} (Build {base_code}) ➔ v{new_name} (Build {new_code})')
+          "
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Fast Compilation & Syntax Check
+        run: |
+          chmod +x gradlew
+          echo "Running fast Kotlin syntax and type check..."
+          ./gradlew compileDebugKotlin --stacktrace
+          echo "✅ Compilation and syntax validation passed!"
+
+  release:
+    name: Build APK & OTA Release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -61,7 +134,6 @@ jobs:
           retention-days: 14
 
       - name: Create GitHub Release
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.app_version.outputs.TAG_NAME }}
@@ -77,7 +149,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Connect to Tailscale (OTA Pi Deploy)
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && env.HAS_TAILSCALE == 'true'
+        if: env.HAS_TAILSCALE == 'true'
         uses: tailscale/github-action@v3
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
@@ -85,7 +157,7 @@ jobs:
           HAS_TAILSCALE: ${{ secrets.TAILSCALE_AUTHKEY != '' }}
 
       - name: Deploy APK to Raspberry Pi OTA Server
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && env.HAS_TAILSCALE == 'true'
+        if: env.HAS_TAILSCALE == 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.PI_SSH_KEY }}" > ~/.ssh/id_ed25519

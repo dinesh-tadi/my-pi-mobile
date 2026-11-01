@@ -454,8 +454,7 @@ fun ConnectionStatusBadge(
     val (text, bgColor, contentColor) = when (state) {
         is ConnectionState.Checking -> Triple("Checking...", Color(0xFF64748B), Color.White)
         is ConnectionState.Connected -> {
-            val sec = ((currentTimeMs - state.lastSeenMs) / 1000).coerceAtLeast(0)
-            val label = "${state.mode} • ${sec}s"
+            val label = "${state.mode} • ${state.latencyMs}ms"
             Triple(label, Color(0xFF16A34A), Color.White)
         }
         is ConnectionState.Degraded -> {
