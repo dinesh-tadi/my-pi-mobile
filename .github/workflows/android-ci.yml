@@ -130,7 +130,7 @@ jobs:
           echo "TAG_NAME=v${VERSION_NAME}-b${VERSION_CODE}" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: argon-hub-v${{ steps.app_version.outputs.VERSION_NAME }}-b${{ steps.app_version.outputs.VERSION_CODE }}.apk
           path: app/build/outputs/apk/debug/app-debug.apk
