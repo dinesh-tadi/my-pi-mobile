@@ -26,7 +26,9 @@ jobs:
       matrix:
         include:
           - language: actions
+            build-mode: none
           - language: java-kotlin
+            build-mode: manual
 
     steps:
       - name: Checkout repository
@@ -47,10 +49,13 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
-      - name: Autobuild
+      - name: Compile Kotlin for CodeQL Extraction
         if: matrix.language == 'java-kotlin'
-        uses: github/codeql-action/autobuild@v4
+        run: |
+          chmod +x gradlew
+          ./gradlew clean compileDebugKotlin --no-daemon --no-build-cache -Dorg.gradle.caching=false -Dkotlin.compiler.execution.strategy=in-process
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
