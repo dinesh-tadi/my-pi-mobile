@@ -153,7 +153,7 @@ jobs:
 
       - name: Connect to Tailscale (OTA Pi Deploy)
         if: env.HAS_TAILSCALE == 'true'
-        uses: tailscale/github-action@v3
+        uses: tailscale/github-action@v4
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
         env:
