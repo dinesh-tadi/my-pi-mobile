@@ -3,6 +3,7 @@ package com.argon.hub.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -87,6 +89,7 @@ import com.argon.hub.data.OtaManager
 import com.argon.hub.data.OtaState
 import com.argon.hub.model.ServiceItem
 import com.argon.hub.model.ServiceRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -104,6 +107,14 @@ fun HubScreen(
     val connectionState by networkManager.connectionState.collectAsStateWithLifecycle()
     val otaState by otaManager.otaState.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableIntStateOf(0) }
+    var showConnectionDialog by remember { mutableStateOf(false) }
+
+    val currentTimeMs by produceState(initialValue = System.currentTimeMillis()) {
+        while (true) {
+            delay(1000)
+            value = System.currentTimeMillis()
+        }
+    }
 
     val activeHost = when (val state = connectionState) {
         is ConnectionState.Connected -> state.host
@@ -125,24 +136,16 @@ fun HubScreen(
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = Color(0x3306B6D4)
-                            ) {
-                                Text(
-                                    text = "v2.0",
-                                    color = Color(0xFF22D3EE),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                )
-                            }
-                            ConnectionStatusBadge(connectionState)
+                            ConnectionStatusBadge(
+                                state = connectionState,
+                                currentTimeMs = currentTimeMs,
+                                onClick = { showConnectionDialog = true }
+                            )
                         }
                         val installedVersion = remember(context) {
                             try {
                                 val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                                val vName = (pkgInfo.versionName ?: "1.2").removePrefix("v")
+                                val vName = (pkgInfo.versionName ?: "2.1").removePrefix("v")
                                 val vCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                                     pkgInfo.longVersionCode
                                 } else {
@@ -151,14 +154,92 @@ fun HubScreen(
                                 }
                                 "$vName($vCode)"
                             } catch (_: Exception) {
-                                "1.2(4)"
+                                "2.1(15)"
                             }
                         }
-                        Text(
-                            text = installedVersion,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.clickable { showConnectionDialog = true }
+                        ) {
+                            Text(
+                                text = "v$installedVersion",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "•",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            when (val s = connectionState) {
+                                is ConnectionState.Connected -> {
+                                    val sec = ((currentTimeMs - s.lastSeenMs) / 1000).coerceAtLeast(0)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .background(Color(0xFF16A34A), CircleShape)
+                                        )
+                                        Text(
+                                            text = "Last ping: ${sec}s ago (healthy)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF16A34A),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                is ConnectionState.Degraded -> {
+                                    val sec = ((currentTimeMs - s.lastSeenMs) / 1000).coerceAtLeast(0)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .background(Color(0xFFD97706), CircleShape)
+                                        )
+                                        Text(
+                                            text = "Reconnecting (${sec}s ago)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFFD97706),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                is ConnectionState.Offline -> {
+                                    val sec = s.lastSeenMs?.let { ((currentTimeMs - it) / 1000).coerceAtLeast(0) }
+                                    val timeStr = if (sec != null) "${sec}s ago" else "never"
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .background(Color(0xFFDC2626), CircleShape)
+                                        )
+                                        Text(
+                                            text = "Pi down (last seen: $timeStr)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFFDC2626),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                is ConnectionState.Checking -> {
+                                    Text(
+                                        text = "Connecting to Pi...",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                     }
                 },
                 actions = {
@@ -270,6 +351,7 @@ fun HubScreen(
                 val offlineState = connectionState as? ConnectionState.Offline
                 PiDowntimeCard(
                     offlineState = offlineState,
+                    currentTimeMs = currentTimeMs,
                     onConnectTailscale = { networkManager.launchTailscale(context) },
                     onRetry = onRefresh
                 )
@@ -318,22 +400,71 @@ fun HubScreen(
             }
         }
     }
+
+    if (showConnectionDialog) {
+        AlertDialog(
+            onDismissRequest = { showConnectionDialog = false },
+            title = { Text("Raspberry Pi Connection") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    when (val s = connectionState) {
+                        is ConnectionState.Connected -> {
+                            val sec = ((currentTimeMs - s.lastSeenMs) / 1000).coerceAtLeast(0)
+                            Text("• Status: Connected & Healthy", fontWeight = FontWeight.Bold, color = Color(0xFF16A34A))
+                            Text("• Network Mode: ${s.mode}")
+                            Text("• Host Address: ${s.host}")
+                            Text("• Latency: ${s.latencyMs} ms")
+                            Text("• Heartbeat Interval: Every 10 seconds")
+                            Text("• Last Pulse Received: $sec seconds ago")
+                            Text("• Dead-Man Switch: Active (Healthchecks.io)")
+                        }
+                        is ConnectionState.Degraded -> {
+                            val sec = ((currentTimeMs - s.lastSeenMs) / 1000).coerceAtLeast(0)
+                            Text("• Status: Reconnecting...", fontWeight = FontWeight.Bold, color = Color(0xFFD97706))
+                            Text("• Host: ${s.host} (${s.mode})")
+                            Text("• Missed Heartbeat: $sec seconds without pulse")
+                        }
+                        is ConnectionState.Offline -> {
+                            val sec = s.lastSeenMs?.let { ((currentTimeMs - it) / 1000).coerceAtLeast(0) }
+                            Text("• Status: Offline / Unreachable", fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
+                            Text("• Last Seen: ${if (sec != null) "$sec seconds ago" else "Never in this session"}")
+                            Text("• Reason: ${s.reason}")
+                        }
+                        is ConnectionState.Checking -> {
+                            Text("• Status: Testing connection to Pi...")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showConnectionDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
 @Composable
-fun ConnectionStatusBadge(state: ConnectionState) {
+fun ConnectionStatusBadge(
+    state: ConnectionState,
+    currentTimeMs: Long,
+    onClick: () -> Unit = {}
+) {
     val (text, bgColor, contentColor) = when (state) {
         is ConnectionState.Checking -> Triple("Checking...", Color(0xFF64748B), Color.White)
         is ConnectionState.Connected -> {
-            val label = "${state.mode} • ${state.latencyMs}ms"
+            val sec = ((currentTimeMs - state.lastSeenMs) / 1000).coerceAtLeast(0)
+            val label = "${state.mode} • ${sec}s"
             Triple(label, Color(0xFF16A34A), Color.White)
         }
         is ConnectionState.Degraded -> {
-            Triple("Reconnecting (${state.elapsedSec}s)", Color(0xFFD97706), Color.White)
+            val sec = ((currentTimeMs - state.lastSeenMs) / 1000).coerceAtLeast(0)
+            Triple("Reconnecting (${sec}s)", Color(0xFFD97706), Color.White)
         }
         is ConnectionState.Offline -> {
             val label = if (state.lastSeenMs != null) {
-                val sec = ((System.currentTimeMillis() - state.lastSeenMs) / 1000).coerceAtLeast(0)
+                val sec = ((currentTimeMs - state.lastSeenMs) / 1000).coerceAtLeast(0)
                 if (sec < 60) "Pi Down (${sec}s)" else "Pi Down (${sec / 60}m)"
             } else {
                 "Pi Offline"
@@ -345,7 +476,9 @@ fun ConnectionStatusBadge(state: ConnectionState) {
     Surface(
         color = bgColor,
         shape = CircleShape,
-        modifier = Modifier.padding(start = 4.dp)
+        modifier = Modifier
+            .padding(start = 4.dp)
+            .clickable(onClick = onClick)
     ) {
         Text(
             text = text,
@@ -360,17 +493,16 @@ fun ConnectionStatusBadge(state: ConnectionState) {
 @Composable
 fun PiDowntimeCard(
     offlineState: ConnectionState.Offline?,
+    currentTimeMs: Long,
     onConnectTailscale: () -> Unit,
     onRetry: () -> Unit
 ) {
-    val lastSeenStr = remember(offlineState?.lastSeenMs) {
-        val ms = offlineState?.lastSeenMs
-        if (ms != null) {
-            val sec = ((System.currentTimeMillis() - ms) / 1000).coerceAtLeast(0)
-            if (sec < 60) "${sec} seconds ago" else "${sec / 60} minutes ago"
-        } else {
-            null
-        }
+    val ms = offlineState?.lastSeenMs
+    val lastSeenStr = if (ms != null) {
+        val sec = ((currentTimeMs - ms) / 1000).coerceAtLeast(0)
+        if (sec < 60) "${sec} seconds ago" else "${sec / 60} minutes ago"
+    } else {
+        null
     }
 
     ElevatedCard(
