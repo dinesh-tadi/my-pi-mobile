@@ -56,12 +56,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        networkManager.startHeartbeat(lifecycleScope)
         lifecycleScope.launch {
             networkManager.checkConnectivity()
             val host = networkManager.getActiveHost()
             otaManager.checkForUpdates(host, getAppVersionCode())
             authManager.verifySession(host)
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        networkManager.stopHeartbeat()
     }
 
     private fun getAppVersionCode(): Long {
@@ -91,6 +97,7 @@ fun ArgonApp(
     var activeService by remember { mutableStateOf<ActiveService?>(null) }
     val activeHost = when (val conn = connectionState) {
         is ConnectionState.Connected -> conn.host
+        is ConnectionState.Degraded -> conn.host
         else -> networkManager.getActiveHost()
     }
 
