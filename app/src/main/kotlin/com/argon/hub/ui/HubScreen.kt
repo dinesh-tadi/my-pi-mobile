@@ -107,6 +107,7 @@ fun HubScreen(
 
     val activeHost = when (val state = connectionState) {
         is ConnectionState.Connected -> state.host
+        is ConnectionState.Degraded -> state.host
         else -> "argon-host"
     }
 
@@ -264,9 +265,14 @@ fun HubScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Offline Warning & One-Tap Tailscale Connect
+            // Offline Warning & Pi Downtime Status
             AnimatedVisibility(visible = connectionState is ConnectionState.Offline) {
-                TailscalePromptCard(onConnectTailscale = { networkManager.launchTailscale(context) })
+                val offlineState = connectionState as? ConnectionState.Offline
+                PiDowntimeCard(
+                    offlineState = offlineState,
+                    onConnectTailscale = { networkManager.launchTailscale(context) },
+                    onRetry = onRefresh
+                )
             }
 
             // OTA Update Notification Banner
@@ -319,10 +325,21 @@ fun ConnectionStatusBadge(state: ConnectionState) {
     val (text, bgColor, contentColor) = when (state) {
         is ConnectionState.Checking -> Triple("Checking...", Color(0xFF64748B), Color.White)
         is ConnectionState.Connected -> {
-            val label = "${state.mode} (${state.latencyMs}ms)"
+            val label = "${state.mode} • ${state.latencyMs}ms"
             Triple(label, Color(0xFF16A34A), Color.White)
         }
-        is ConnectionState.Offline -> Triple("Offline", Color(0xFFDC2626), Color.White)
+        is ConnectionState.Degraded -> {
+            Triple("Reconnecting (${state.elapsedSec}s)", Color(0xFFD97706), Color.White)
+        }
+        is ConnectionState.Offline -> {
+            val label = if (state.lastSeenMs != null) {
+                val sec = ((System.currentTimeMillis() - state.lastSeenMs) / 1000).coerceAtLeast(0)
+                if (sec < 60) "Pi Down (${sec}s)" else "Pi Down (${sec / 60}m)"
+            } else {
+                "Pi Offline"
+            }
+            Triple(label, Color(0xFFDC2626), Color.White)
+        }
     }
 
     Surface(
@@ -341,7 +358,21 @@ fun ConnectionStatusBadge(state: ConnectionState) {
 }
 
 @Composable
-fun TailscalePromptCard(onConnectTailscale: () -> Unit) {
+fun PiDowntimeCard(
+    offlineState: ConnectionState.Offline?,
+    onConnectTailscale: () -> Unit,
+    onRetry: () -> Unit
+) {
+    val lastSeenStr = remember(offlineState?.lastSeenMs) {
+        val ms = offlineState?.lastSeenMs
+        if (ms != null) {
+            val sec = ((System.currentTimeMillis() - ms) / 1000).coerceAtLeast(0)
+            if (sec < 60) "${sec} seconds ago" else "${sec / 60} minutes ago"
+        } else {
+            null
+        }
+    }
+
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer
@@ -360,28 +391,42 @@ fun TailscalePromptCard(onConnectTailscale: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Argon Pi Unreachable",
+                    text = if (lastSeenStr != null) "Argon Pi Disconnected" else "Argon Pi Unreachable",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
+            val explanation = if (lastSeenStr != null) {
+                "Last active pulse was received $lastSeenStr.\nNo response for over 30 seconds — the Pi may be rebooting, sleeping, or experiencing a network/power interruption."
+            } else {
+                "Unable to reach the Raspberry Pi via local Wi-Fi or Tailscale. If away from home, open Tailscale to join your private mesh network."
+            }
             Text(
-                text = "If you are away from home Wi-Fi, open the Tailscale app to connect your private mesh.",
+                text = explanation,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(12.dp))
-            Button(
-                onClick = onConnectTailscale,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Open Tailscale App")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onConnectTailscale,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Tailscale App")
+                }
+                OutlinedButton(
+                    onClick = onRetry
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Retry")
+                }
             }
         }
     }
